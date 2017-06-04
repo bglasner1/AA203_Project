@@ -98,7 +98,7 @@ cvx_begin
         x(:,2:(NumTimeSteps+1),:) == ...
                              x(:,1:NumTimeSteps,:) + u(:,1:NumTimeSteps,:);
         
-        % Collision Avoidance constraints       
+        % Collision Avoidance constraints
         for i = 1:(NumTimeSteps+1)
             for p = 1:(NumAgents-1)
                 for q = (p+1):NumAgents
