@@ -155,6 +155,20 @@ cpu_time = cvx_cputime;
 display(cvx_cputime)
 display(cvx_optval)
 
+% Time step when destination is reached for each agent
+% destStep = [(1:NumAgents)' zeros(NumAgents,1)];
+% for p = 1:NumAgents
+%     destStep(p,2) = find(round(b(:,p)) == 1);
+% end
+
+% Display agent number and time step at which destination is reached
+% display(destStep);
+
+% Display positions at those times
+% for p = 1:NumAgents
+%     display(x(:,destStep(p,2),p))
+% end
+
 % Plot results
 figure
 % Plot circle
@@ -164,8 +178,10 @@ hold on
 % Plot trajectories
 for p = 1:NumAgents
     plot(x(1,1,p),x(2,1,p),'g.','MarkerSize',15)
+    plot(x(1,destStep(p,2),p),x(2,destStep(p,2),p),'mo','MarkerSize',10)
     plot(x(1,NumTimeSteps+1,p),x(2,NumTimeSteps+1,p),'r*','MarkerSize',15)
-    plot(x(1,:,p),x(2,:,p),'.-')
+    plot(x(1,:,p),x(2,:,p),'b.-')
+%     plot(x(1,1:destStep(p,2),p),x(2,1:destStep(p,2),p),'.-')
 end
 hold off
 xlabel('x')

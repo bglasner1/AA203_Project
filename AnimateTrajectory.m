@@ -1,4 +1,4 @@
-function output = AnimateTrajectory(X)
+function AnimateTrajectory(X)
 
 % Extract constants
 NumTimeSteps = size(X,2) - 1;
@@ -16,11 +16,6 @@ TimeVector = (0:NumTimeSteps)'*TimeStep;
 
 % plot trajectory
 figure
-xlabel('x')
-ylabel('y')
-title('Trajectory Animation')
-
-
 for iter = 1:10
     for i = 1:(NumTimeSteps+1)
         for  p = 1:NumAgents            
@@ -30,8 +25,8 @@ for iter = 1:10
             hold on
             
             % Start and end positions
-            plot(X(1,1,p),X(2,1,p),'g.','MarkerSize',10)
-%             plot(X(1,end,p),X(2,end,p),'r*','MarkerSize',10)
+            plot(X(1,1,p),X(2,1,p),'g.','MarkerSize',15)
+            plot(X(1,end,p),X(2,end,p),'r*','MarkerSize',15)
             
             % Current position
             x = X(1,i,p);
@@ -42,6 +37,9 @@ for iter = 1:10
         end
         
         hold off
+        xlabel('x')
+        ylabel('y','Rotation',0)
+        title('Trajectory Animation')
         axis equal
         drawnow
         pause(0.1)%TimeStep)
