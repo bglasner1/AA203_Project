@@ -18,10 +18,13 @@ function [X,U,cpu_time] = MinTime_NoRHC_FullComm_2D_CVX(NumAgents,TimeStep,NumTi
 % seed random number generator
 rng shuffle
 
+% Dimension of the problem (2 -> 2D, 3 -> 3D)
+dim = 2;
+
 % Determine initial positions of agents
 radius = 10; % radius of circle of initial positions
-x0 = zeros(2,1,NumAgents);
-xf = zeros(2,1,NumAgents);
+x0 = zeros(dim,1,NumAgents);
+xf = zeros(dim,1,NumAgents);
 for p = 1:NumAgents
     angularPosition = 2*pi*(p-1)/NumAgents; % angular position for ith agent (on circle centered at origin)
     x0(1,1,p) = radius*cos(angularPosition); % initial x position for ith agent
@@ -57,7 +60,7 @@ d = 1;     % exclusion zone center to edge distance
 M = 10;    % number of edges in circle approximation polygon
            % for linear velocity limits
 umax = 0.5;  % max velocity magnitude
-
+epsilon = 0.001; % small number to scale control in objective function
            
 % Create matrix of real times
 times = [0:NumTimeSteps]'.*TimeStep;
@@ -70,13 +73,20 @@ times = [0:NumTimeSteps]'.*TimeStep;
 % Perform optimization for trajectories
 cvx_begin
     cvx_solver gurobi_2
-
-    variable x(2,NumTimeSteps+1,NumAgents);
-    variable u(2,NumTimeSteps,NumAgents);
-    variable c_pq(2,NumTimeSteps+1,NumAgents,NumAgents) binary;
-    variable c_qp(2,NumTimeSteps+1,NumAgents,NumAgents) binary;
+    
+    % variables
+    variable x(dim,NumTimeSteps+1,NumAgents);
+    variable u(dim,NumTimeSteps,NumAgents);
+    variable c_pq(NumAgents-1,NumAgents-1,dim,NumTimeSteps+1) binary upper_triangular;
+    variable c_qp(NumAgents-1,NumAgents-1,dim,NumTimeSteps+1) binary upper_triangular;
     variable b(NumTimeSteps+1,NumAgents) binary;
-    minimize(sum(times'*b)); % minimize sum of arrival times
+    
+    % minimize sum of arrival times
+    % add in sum of absolute values of all u values (u(:) is vector of all
+    % u values) to smooth trajectories (reduce redundancy) and hold
+    % trajectories at destination points. Scale by small epsilon value to
+    % keep time as the priority
+    minimize(sum(times'*b) + epsilon*norm(u(:),1)); 
     subject to
         x(:,1,:) == x0; % initial position constraints
         
@@ -97,20 +107,22 @@ cvx_begin
         % System dynamics (position updated by control input (velocity))
         x(:,2:(NumTimeSteps+1),:) == ...
                              x(:,1:NumTimeSteps,:) + u(:,1:NumTimeSteps,:);
-        
-        % Collision Avoidance constraints
+
+        % Collision Avoidance constraints       
         for i = 1:(NumTimeSteps+1)
             for p = 1:(NumAgents-1)
-                for q = (p+1):NumAgents
-                    % x and y difference for p-q
-                    x(:,i,p) - x(:,i,q) >= d - R*c_pq(:,i,p,q);
-                    % x and y difference for q-p
-                    x(:,i,q) - x(:,i,p) >= d - R*c_qp(:,i,p,q);
-                    
+                for q = (p+1):NumAgents                    
+                    for k = 1:dim
+                        % x and y difference for p-q
+                        x(k,i,p) - x(k,i,q) >= d - R*c_pq(p,q-1,k,i);
+                        % x and y difference for q-p
+                        x(k,i,q) - x(k,i,p) >= d - R*c_qp(p,q-1,k,i);
+                    end
+                        
                     % only allow 3 (of 4) constraints to be relaxed (c = 1)
                     % at a time (as long as one is active and satisfied,
                     % there will not be a collision)
-                    sum(c_pq(:,i,p,q)) + sum(c_qp(:,i,p,q)) <= 3;
+                    sum(c_pq(p,q-1,:,i)) + sum(c_qp(p,q-1,:,i)) <= 3;
                 end
             end
         end
@@ -144,18 +156,18 @@ display(cvx_cputime)
 display(cvx_optval)
 
 % Time step when destination is reached for each agent
-destStep = [(1:NumAgents)' zeros(NumAgents,1)];
-for p = 1:NumAgents
-    destStep(p,2) = find(round(b(:,p)) == 1);
-end
+% destStep = [(1:NumAgents)' zeros(NumAgents,1)];
+% for p = 1:NumAgents
+%     destStep(p,2) = find(round(b(:,p)) == 1);
+% end
 
 % Display agent number and time step at which destination is reached
-display(destStep);
+% display(destStep);
 
 % Display positions at those times
-for p = 1:NumAgents
-    display(x(:,destStep(p,2),p))
-end
+% for p = 1:NumAgents
+%     display(x(:,destStep(p,2),p))
+% end
 
 % Plot results
 figure
@@ -168,8 +180,8 @@ for p = 1:NumAgents
     plot(x(1,1,p),x(2,1,p),'g.','MarkerSize',15)
     plot(x(1,destStep(p,2),p),x(2,destStep(p,2),p),'mo','MarkerSize',10)
     plot(x(1,NumTimeSteps+1,p),x(2,NumTimeSteps+1,p),'r*','MarkerSize',15)
-%     plot(x(1,:,p),x(2,:,p),'b.-')
-    plot(x(1,1:destStep(p,2),p),x(2,1:destStep(p,2),p),'.-')
+    plot(x(1,:,p),x(2,:,p),'b.-')
+%     plot(x(1,1:destStep(p,2),p),x(2,1:destStep(p,2),p),'.-')
 end
 hold off
 xlabel('x')
