@@ -30,7 +30,7 @@ for p = 1:NumAgents
     x0(1,1,p) = radius*cos(angularPosition); % initial x position for ith agent
     x0(2,1,p) = radius*sin(angularPosition); % initial y position for ith agent
     
-    xf_offset = 0; %pi/2/NumAgents*(rand(1)-0.5); % angular offset from final position straight across
+    xf_offset = pi/2/NumAgents*(rand(1)-0.5); % angular offset from final position straight across
     xf(1,1,p) = radius*cos(angularPosition + pi + xf_offset); % final x position for ith agent
     xf(2,1,p) = radius*sin(angularPosition + pi + xf_offset); % final y position for ith agent
 end
@@ -60,7 +60,7 @@ d = 1;     % exclusion zone center to edge distance
 M = 10;    % number of edges in circle approximation polygon
            % for linear velocity limits
 umax = 0.5;  % max velocity magnitude
-epsilon = 0.001; % small number to scale control in objective function
+epsilon = 0.0001; % small number to scale control in objective function
            
 % Create matrix of real times
 times = [0:NumTimeSteps]'.*TimeStep;
@@ -73,7 +73,8 @@ times = [0:NumTimeSteps]'.*TimeStep;
 % Perform optimization for trajectories
 cvx_begin
     cvx_solver gurobi_2
-    
+%     cvx_solver mosek % Do not use. Test for 3 agents ran ~30x slower
+
     % variables
     variable x(dim,NumTimeSteps+1,NumAgents);
     variable u(dim,NumTimeSteps,NumAgents);
@@ -103,6 +104,7 @@ cvx_begin
                 end
             end
         end
+
         
         % System dynamics (position updated by control input (velocity))
         x(:,2:(NumTimeSteps+1),:) == ...
@@ -155,20 +157,6 @@ cpu_time = cvx_cputime;
 display(cvx_cputime)
 display(cvx_optval)
 
-% Time step when destination is reached for each agent
-% destStep = [(1:NumAgents)' zeros(NumAgents,1)];
-% for p = 1:NumAgents
-%     destStep(p,2) = find(round(b(:,p)) == 1);
-% end
-
-% Display agent number and time step at which destination is reached
-% display(destStep);
-
-% Display positions at those times
-% for p = 1:NumAgents
-%     display(x(:,destStep(p,2),p))
-% end
-
 % Plot results
 figure
 % Plot circle
@@ -178,10 +166,8 @@ hold on
 % Plot trajectories
 for p = 1:NumAgents
     plot(x(1,1,p),x(2,1,p),'g.','MarkerSize',15)
-    plot(x(1,destStep(p,2),p),x(2,destStep(p,2),p),'mo','MarkerSize',10)
     plot(x(1,NumTimeSteps+1,p),x(2,NumTimeSteps+1,p),'r*','MarkerSize',15)
-    plot(x(1,:,p),x(2,:,p),'b.-')
-%     plot(x(1,1:destStep(p,2),p),x(2,1:destStep(p,2),p),'.-')
+    plot(x(1,:,p),x(2,:,p),'.-')
 end
 hold off
 xlabel('x')

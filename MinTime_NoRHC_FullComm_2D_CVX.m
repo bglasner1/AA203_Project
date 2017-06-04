@@ -55,13 +55,15 @@ title(['Initial Positions and Destinations for ',...
 axis equal
 
 % Define parameters
-R = 10000; % big number parameter
+R = 10000; % big number parameter. 10000-100000 best for speed
 d = 1;     % exclusion zone center to edge distance
 M = 10;    % number of edges in circle approximation polygon
            % for linear velocity limits
+           % odd values of M seem to run faster (9 and 11 are faster than
+           % 10)
 umax = 0.5;  % max velocity magnitude
-epsilon = 0.001; % small number to scale control in objective function
-           
+epsilon = 0.0001; % small number to scale control in objective function
+                  % not much impact on speed
 % Create matrix of real times
 times = [0:NumTimeSteps]'.*TimeStep;
  
@@ -73,7 +75,8 @@ times = [0:NumTimeSteps]'.*TimeStep;
 % Perform optimization for trajectories
 cvx_begin
     cvx_solver gurobi_2
-    
+%     cvx_solver mosek % Do not use. Test for 3 agents ran ~30x slower
+
     % variables
     variable x(dim,NumTimeSteps+1,NumAgents);
     variable u(dim,NumTimeSteps,NumAgents);
@@ -103,6 +106,7 @@ cvx_begin
                 end
             end
         end
+
         
         % System dynamics (position updated by control input (velocity))
         x(:,2:(NumTimeSteps+1),:) == ...
