@@ -31,6 +31,9 @@ for p = 1:NumAgents
     x0(2,1,p) = radius*sin(angularPosition); % initial y position for ith agent
     
     xf_offset = 0; %pi/2/NumAgents*(rand(1)-0.5); % angular offset from final position straight across
+                                                  % non-zero offset
+                                                  % improves cases with
+                                                  % even number of agents
     xf(1,1,p) = radius*cos(angularPosition + pi + xf_offset); % final x position for ith agent
     xf(2,1,p) = radius*sin(angularPosition + pi + xf_offset); % final y position for ith agent
 end
@@ -63,7 +66,8 @@ M = 10;    % number of edges in circle approximation polygon
            % 10)
 umax = 0.5;  % max velocity magnitude
 epsilon = 0.0001; % small number to scale control in objective function
-                  % not much impact on speed
+                  % not much impact on speed. May need to increase to
+                  % ensure final point for low precision calculations
 % Create matrix of real times
 times = [0:NumTimeSteps]'.*TimeStep;
  
@@ -77,6 +81,16 @@ cvx_begin
     cvx_solver gurobi_2
 %     cvx_solver mosek % Do not use. Test for 3 agents ran ~30x slower
 
+    % control precision
+    cvx_precision default
+%     cvx_precision best % slower than default. Sometimes more accurate
+%     cvx_precision high % slowest. Most accurate
+%     cvx_precision medium % faster than default. Less accurate. No obvious
+                           % issues with solutions during tests
+%     cvx_precision low    % fastest. Least accurate. Solution during test
+                           % seemed ok, but required increased epsilon to 
+                           % hold final positions
+
     % variables
     variable x(dim,NumTimeSteps+1,NumAgents);
     variable u(dim,NumTimeSteps,NumAgents);
@@ -89,6 +103,7 @@ cvx_begin
     % u values) to smooth trajectories (reduce redundancy) and hold
     % trajectories at destination points. Scale by small epsilon value to
     % keep time as the priority
+    % Adding in L1 norm of also results in 25% speed-up
     minimize(sum(times'*b) + epsilon*norm(u(:),1)); 
     subject to
         x(:,1,:) == x0; % initial position constraints
