@@ -130,12 +130,58 @@ for i = 1:NumEndpointVars
     ub(offset + i, 1) = 1;
 end
 
-disp(ctype);
-disp(lb');
-disp(ub');
-
 %begin building the Aeq matrix;
 NumEqConstraints = (NumTimeSteps + 1)*(NumAgents)*2;
 Aeq = zeros(NumEqConstraints, NumVars);
+beq = zeros(NumVars, 1);
+
+%start with adding initial condition constraints
+for i = 1:NumAgents
+   %x initial condition
+   Aeq(2*i-1,1+(i-1)*(NumTimeSteps+1)*2) = 1;
+   %y initial condition
+   Aeq(2*i,2+(i-1)*(NumTimeSteps+1)*2) = 1;
+end
+
+%add the beq values for the initial condition constraints
+for i = 1:NumAgents
+    %x initial condition
+    beq(1+(i-1)*(NumTimeSteps+1)*2,1) = x0(1,i);
+    %y initial condition
+    beq(2+(i-1)*(NumTimeSteps+1)*2,1) = x0(2,i);
+end
+
+offset = (NumAgents*2);
+%add system dynamics constraints
+for i = 1:NumAgents
+    for j = 1:NumTimeSteps
+        %x constraint
+        %x_k
+        %NEED TO FIX THIS OFFSET VALUE
+        Aeq(offset+(i-1)*(NumTimeSteps)*2+2*j-1, 1+(i-1)*(NumTimeSteps+1)*2+2*(j-1)) = 1;
+        %x_k+1
+        Aeq(offset+(i-1)*(NumTimeSteps)*2+2*j-1, 1+(i-1)*(NumTimeSteps+1)*2+2*j) = -1;
+        %ux_k
+        Aeq(offset+(i-1)*(NumTimeSteps)*2+2*j-1, NumStateVars+(i-1)*(NumTimeSteps)*2+2*j-1) = 1;
+        
+        %y constraint
+        %y_k
+        Aeq(offset+(i-1)*(NumTimeSteps)*2+2*j, 2+(i-1)*(NumTimeSteps+1)*2+2*(j-1)) = 1;
+        %y_k+1
+        Aeq(offset+(i-1)*(NumTimeSteps)*2+2*j, 2+(i-1)*(NumTimeSteps+1)*2+2*j) = -1;
+        %uy_k
+        Aeq(offset+(i-1)*(NumTimeSteps)*2+2*j, NumStateVars+(i-1)*(NumTimeSteps)*2+2*j) = 1;
+    end
+end
+
+%ADD THE REST OF THE CONSTRAINTS TO THE beq matrix (but you prob dont need
+%to since the RHS is zero
+% disp(ctype);
+% disp(lb');
+% disp(ub');
+disp(Aeq);
+%disp(beq');
 
 end
+
+
