@@ -15,47 +15,17 @@ function [X,U,cpu_time] = MinTime_NoRHC_FullComm_2D_CVX(NumAgents,TimeStep,NumTi
 
 %% Parameter definition
 
-% seed random number generator
-rng shuffle
-
 % Dimension of the problem (2 -> 2D, 3 -> 3D)
 dim = 2;
 
 % Determine initial positions of agents
-radius = 10; % radius of circle of initial positions
+Radius = 10; % radius of circle of initial positions
+OffsetFlag = true; % Set final positions to be offset from 180 deg across
 x0 = zeros(dim,1,NumAgents);
 xf = zeros(dim,1,NumAgents);
-for p = 1:NumAgents
-    angularPosition = 2*pi*(p-1)/NumAgents; % angular position for ith agent (on circle centered at origin)
-    x0(1,1,p) = radius*cos(angularPosition); % initial x position for ith agent
-    x0(2,1,p) = radius*sin(angularPosition); % initial y position for ith agent
-    
-    xf_offset = 0; %pi/2/NumAgents*(rand(1)-0.5); % angular offset from final position straight across
-                                                  % non-zero offset
-                                                  % improves cases with
-                                                  % even number of agents
-    xf(1,1,p) = radius*cos(angularPosition + pi + xf_offset); % final x position for ith agent
-    xf(2,1,p) = radius*sin(angularPosition + pi + xf_offset); % final y position for ith agent
-end
 
-% Plot straight line trajectories
-figure
-% Plot circle
-t = linspace(0,2*pi,100);
-plot(radius*cos(t),radius*sin(t),'k')
-hold on
-% Plot initial and final points with straight line trajectory
-for i = 1:NumAgents
-    plot(x0(1,i),x0(2,i),'b.','MarkerSize',15) % initial point
-    plot(xf(1,i),xf(2,i),'r*','MarkerSize',15) % final point
-    plot([x0(1,i) xf(1,i)],[x0(2,i) xf(2,i)],'g','MarkerSize',15) % trajectory
-end
-hold off
-xlabel('x')
-ylabel('y')
-title(['Initial Positions and Destinations for ',...
-        num2str(NumAgents),' Agents'])
-axis equal
+[x0(:,1,:),xf(:,1,:)] = ...
+                 GetInitialAndFinalPositions(NumAgents,Radius,OffsetFlag);
 
 % Define parameters
 R = 10000; % big number parameter. 10000-100000 best for speed
@@ -175,22 +145,6 @@ display(cvx_cputime)
 display(cvx_optval)
 
 % Plot results
-figure
-% Plot circle
-t = linspace(0,2*pi,100);
-plot(radius*cos(t),radius*sin(t),'k')
-hold on
-% Plot trajectories
-for p = 1:NumAgents
-    plot(x(1,1,p),x(2,1,p),'g.','MarkerSize',15)
-    plot(x(1,NumTimeSteps+1,p),x(2,NumTimeSteps+1,p),'r*','MarkerSize',15)
-    plot(x(1,:,p),x(2,:,p),'.-')
-end
-hold off
-xlabel('x')
-ylabel('y')
-title(['Minimum Time Trajectories for ',...
-        num2str(NumAgents),' Agents with Full Communication'])
-axis equal
+PlotTrajectory(X);
            
            
