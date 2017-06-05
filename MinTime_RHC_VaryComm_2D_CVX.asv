@@ -1,0 +1,256 @@
+% AA203 Project
+% 6/4/2017
+% Implementation of distributed MPC method in CVX for multi-agent path
+% path planning with collision avoidance constraints using a combination of
+% methods from:
+% Richards, How 2002 (Aircraft Trajectories)
+% Bellingham, Richards, How 2002 (RHC)
+% Richards, How 2004 (Decentralized MPC)
+%
+% State is (x,y) position and control is (ux,uy) = (vx,vy) velocity
+%
+% Inputs: NumAgents: number of agents spaced evenly around a circle
+%                    initially and headed across the circle
+%         CommRange: Radius of communication (max distance between two
+%                    agents in full communication with one another)
+%         ExecHorz: Execution Horizon, or number of steps that each agent
+%                   takes in current planned trajectory before re-planning
+%         PlanHorz: Planning Horizon, or number of steps ahead of the
+%                   present time are in each planned trajectory
+%                   (PlanHorz >= ExecHorz)
+%
+% Outputs: X: 2 x NumTimeSteps+1 x NumAgents 
+%             (actual state trajectories for all agents)
+%          U: 2 x NumTimeSteps x NumAgents
+%             (control histories for all agents)
+%          X_plans: NumTimeSteps x 1 cell array
+%                   each entry is a 2 x PlanHorz+1 x NumAgents array with
+%                   all of the planned trajectories at that time step
+%          opt_time: The sum of the arrival times of all agents
+%                    Infinity if any agent does not arrive
+%          cpu_time: run time
+
+
+function [X,U,X_plans,opt_time,cpu_time] = MinTime_RHC_VaryComm_2D_CVX(NumAgents,CommRange,ExecHorz,PlanHorz)
+
+%% Parameter definition
+
+% Dimension of the problem (2 -> 2D, 3 -> 3D)
+dim = 2;
+
+% Determine initial positions of agents
+Radius = 10; % radius of circle of initial positions
+OffsetFlag = true; % Set final positions to be offset from 180 deg across
+x0 = zeros(dim,1,NumAgents);
+xf = zeros(dim,1,NumAgents);
+
+[x0(:,1,:),xf(:,1,:)] = ...
+                 GetInitialAndFinalPositions(NumAgents,Radius,OffsetFlag);
+
+% Define parameters
+R = 10000; % big number parameter. 10000-100000 best for speed
+d = 1;     % exclusion zone center to edge distance
+M = 10;    % number of edges in circle approximation polygon
+           % for linear velocity limits
+           % odd values of M seem to run faster (9 and 11 are faster than
+           % 10)
+umax = 0.5;  % max velocity magnitude
+epsilon = 0.0001; % small number to scale control in objective function
+                  % not much impact on speed. May need to increase to
+                  % ensure final point for low precision calculations
+arrival_tol = 0.0001; % tolerance for agent to arrive at destination
+                  
+% Define time parameters
+TimeStep = 1; % Length of a time step
+CurrentStep = 1; % Start at step 0 (initial point)
+MaxNumTimeSteps = 100; % Restrict total number of time steps
+times = [0:MaxNumTimeSteps]'.*TimeStep;
+
+% Pre allocate output arrays
+X = zeros(dim,MaxNumTimeSteps+1,NumAgents);
+U = zeros(dim,MaxNumTimeSteps,NumAgents);
+X_plans = cell(MaxNumTimeSteps,1);
+all_opt_times = inf(1,NumAgents);
+
+% Define initial positions
+X(:,1,:) = x0;
+
+%% Calculate planned trajectories for each agent at each time step
+
+% Keep track of cpu time
+tic
+
+% Suppress CVX output
+% cvx_quiet true
+
+% Loop until all agents arrive at their destination
+while any(all_opt_times == inf)  && (CurrentStep < (MaxNumTimeSteps+1))
+    
+    % Initilize X_plans for this timestep
+    X_plans{CurrentStep} = zeros(2,PlanHorz+1,NumAgents);
+    
+    for p = 1:NumAgents
+        
+        % Determine which agents this agent is in communication with at the
+        % current step
+        OtherAgents = [1:(p-1),(p+1):NumAgents];
+        dist_btwn_agents = ... % L2 norm to calc distance between agents
+            norms((X(:,CurrentStep,p) - X(:,CurrentStep,OtherAgents)),2,1);
+        dist_btwn_agents = dist_btwn_agents(:); % convert to vector
+        
+        % Perform optimization in CVX for trajectories
+        cvx_begin
+            cvx_solver gurobi_2
+        %     cvx_solver mosek % Do not use. Test for 3 agents ran ~30x slower
+
+            % control precision
+            cvx_precision default
+        %     cvx_precision best % slower than default. Sometimes more accurate
+        %     cvx_precision high % slowest. Most accurate
+        %     cvx_precision medium % faster than default. Less accurate. No obvious
+                                   % issues with solutions during tests
+        %     cvx_precision low    % fastest. Least accurate. Solution during test
+                                   % seemed ok, but required increased epsilon to 
+                                   % hold final positions
+
+            % variables
+            variable x(dim,PlanHorz+1);
+            variable u(dim,PlanHorz);
+            variable c_pq(NumAgents-1,dim,PlanHorz+1) binary;
+            variable c_qp(NumAgents-1,dim,PlanHorz+1) binary;
+
+            % minimize distance from the end of the planned trajectory to
+            % the destination (xf/goal). Use L1 norm for linearity.
+            % add in distance from next step to the destination scaled down
+            % by very small epsilon value to ensure that the agent
+            % progresses toward the destination after the destination comes
+            % into the horizon. Again use L1 norm
+            plan_dist_to_goal = norm(xf(:,1,p) - x(:,PlanHorz+1,p),1);
+            next_dist_to_goal = norm(xf(:,1,p) - x(:,2,p),1);
+            minimize(plan_dist_to_goal + epsilon*next_dist_to_goal); 
+            subject to
+                % initial position constraint
+                x(:,1) == X(:,CurrentStep,p); 
+
+                % Velocity constraints (approximate circle with linear
+                % constraints)
+                for i = 1:PlanHorz % velocity constraint at each time step
+                    for m = 1:M        % approximate circle with M sided polygon
+                        m_angle = 2*pi*m/M; % mth position on circle for constraint
+
+                        % Constrain x (u(1)) and y (u(2)) velocity inside
+                        % of mth side of polygon
+                        u(1,i)*sin(m_angle) + u(2,i)*cos(m_angle) <= umax;
+                    end
+                end
+
+
+                % System dynamics (position updated by control input (velocity))
+                x(:,2:(PlanHorz+1)) == x(:,1:PlanHorz) + u(:,1:PlanHorz);
+
+                % Collision Avoidance constraints       
+                % Avoid collisions with all other agents q
+                for q = OtherAgents  
+                    % Develop planning hierarchy. Agent 1 plans first
+                    % and predicts plans for later agents. Later agents
+                    % use actual plans for earlier agents and predict
+                    % plans for later agents. If two agents are not in
+                    % communication, they can only predict the
+                    % (straight line) trajectory of the other.
+                    
+                    % If q has already planned at this time step
+                    if q < p
+                        % Convert agent number q to valid index
+                        q_ind = q;
+
+                        % Check if p and q are in communication
+                        if dist_btwn_agents(q_ind) <= CommRange
+                            % In comm. Use q's current planned trajectory
+                            xq = X_plans{CurrentStep}(:,:,q);
+                        else
+                            % Not in comm. Use predicted straight
+                            % trajectory with q's current state and control
+                            xq = GetStraightTrajectory(...
+                                X(:,CurrentStep,q),...
+                                U(:,CurrentStep,q),PlanHorz);
+                        end
+                        
+                    % Else q has not planned at this time step
+                    else
+                        % Convert agent number q to valid index
+                        q_ind = q-1;                        
+                        
+                        % Check if p and q are in communication                        
+                        if CurrentStep > 1
+                            if dist_btwn_agents(q_ind) <= CommRange
+                                % In comm. Use q's last planned trajectory
+                                xq = X_plans{CurrentStep-1}(:,:,q);
+                            else
+                                % Not in comm. Use predicted straight
+                                % trajectory with q's current state and last
+                                % control
+                                xq = GetStraightTrajectory(...
+                                    X(:,CurrentStep,q),...
+                                    U(:,CurrentStep-1,q),PlanHorz);
+                            end
+                        % Current step is 1. Generate static trajectory at
+                        % current position
+                        else
+                            xq = GetStraightTrajectory(...
+                                    X(:,CurrentStep,q),[0 0]',PlanHorz);
+                        end
+                    end
+                    
+                    % Define collision avoidance constraints for all time
+                    % steps in horizon
+                    for i = 1:(PlanHorz+1)
+                        for k = 1:dim
+                            % x and y difference for p-q
+                            x(k,i) - xq(k,i) >= d - R*c_pq(q_ind,k,i);
+                            % x and y difference for q-p
+                            xq(k,i) - x(k,i) >= d - R*c_qp(q_ind,k,i);
+                        end
+
+                        % only allow 3 (of 4) constraints to be relaxed (c = 1)
+                        % at a time (as long as one is active and satisfied,
+                        % there will not be a collision)
+                        sum(c_pq(q_ind,:,i)) + sum(c_qp(q_ind,:,i)) <= 3;
+                    end
+                end
+        cvx_end
+
+    end
+    
+    % Update X and U for execution horizon
+    % Update to execution horizon (until MaxNumTimeSteps + 1)
+    UpdateEnd = min(CurrentStep + ExecHorz,MaxNumTimeStep + 1);
+    U(:,CurrentStep:(UpdateEnd-1)),p) = u(:,1:ExecHorz);
+    X(:,(CurrentStep+1):UpdateEnd,p) = x(:,2:(ExecHorz+1));
+    
+    % Store current trajectory in X_plans for all time steps in execution
+    % horizon
+    for i = 1:ExecHorz
+       X_plans{CurrentStep + (i-1)}(:,:,p);      
+       
+       % Check for arrival
+       if norm((xf(:,1,p) - X(:,CurrentStep+i,p)),2) <= arrival_tol       
+    end    
+
+    
+    % Update counter by execution horizon (until MaxNumTimeSteps + 1)
+    CurrentStep = UpdateEnd;
+end
+
+%% Display results
+
+% output
+cpu_time = toc;
+opt_time = sum(all_opt_times);
+
+display(cpu_time)
+display(opt_time)
+
+% Plot results
+PlotTrajectory(X);
+           
+           

@@ -6,7 +6,7 @@
 % center point) from the initial points if OffsetFlag is false. If the
 % OffsetFlag is true, each final position is offset from that point by a
 % randomized (angular) amount
-
+%
 % Inputs: NumAgents: number of agents spaced evenly around a circle
 %                    initially and headed across the circle
 %         Radius: radius of the circle of initial and final positions.
@@ -18,7 +18,7 @@
 %                                       corresponding initial positions.
 %                                       Final positions are guaranteed not
 %                                       to coincide.
-
+%
 % Outputs: x0: 2 x NumAgents array of initial positions
 %              Ex: [x0_1 x0_2 x0_3 ... x0_N;
 %                   y0_1 y0_2 y0_3 ... y0_N]

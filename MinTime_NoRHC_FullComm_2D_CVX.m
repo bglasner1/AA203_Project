@@ -2,7 +2,7 @@
 % 6/3/2017
 % Implementation of method from Richards, How 2002 in CVX
 % State is (x,y) position and control is (ux,uy) = (vx,vy) velocity
-
+%
 % Inputs: NumAgents: number of agents spaced evenly around a circle
 %                    initially and headed across the circle
 %         TimeStep:  The time change at each step

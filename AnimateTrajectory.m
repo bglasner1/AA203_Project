@@ -1,7 +1,7 @@
 % AA203 Project
 % 6/3/2017
 % Function to animate the trajectories defined in input matrix X
-
+%
 % Input X: 2 x NumTimeSteps+1 x NumAgents
 
 function AnimateTrajectory(X)
