@@ -13,6 +13,7 @@ function [X,U] = MinTime_NoRHC_FullComm_2D_cplex(NumAgents,TimeStep,NumTimeSteps
 %UNTITLED3 Summary of this function goes here
 %   Detailed explanation goes here
 
+u_max = 0.5;
 
 rng('shuffle'); %seed the random generator based on time
 
@@ -133,7 +134,7 @@ end
 %begin building the Aeq matrix;
 NumEqConstraints = (NumTimeSteps + 1)*(NumAgents)*2;
 Aeq = zeros(NumEqConstraints, NumVars);
-beq = zeros(NumVars, 1);
+beq = zeros(NumEqConstraints, 1);
 
 %start with adding initial condition constraints
 for i = 1:NumAgents
@@ -176,11 +177,44 @@ end
 
 %ADD THE REST OF THE CONSTRAINTS TO THE beq matrix (but you prob dont need
 %to since the RHS is zero
+
+%begin building Aineq matrix
+NumVelocityConstraints = (NumTimeSteps)*(NumAgents)*M;
+NumCollisionConstraints = ((NumTimeSteps+1)*(NumAgents)*(NumAgents-1)*5)/2;
+NumEndpointConstraints = (NumTimeSteps)*(NumAgents)*4 + NumAgents;
+NumIneqConstraints = NumVelocityConstraints + NumCollisionConstraints + NumEndpointConstraints;
+Aineq = zeros(NumIneqConstraints, NumVars);
+bineq = zeros(NumIneqConstraints,1);
+
+%start with velocity constraints
+for p = 1:NumAgents
+    for i = 1:NumTimeSteps
+        for m = 1:M
+            Aineq(m + (i-1)*M + (p-1)*(NumTimeSteps)*M, NumStateVars + 2*(i-1) + (p-1)*NumTimeSteps*2 + 1) = sin((2*pi*m)/M);
+            Aineq(m + (i-1)*M + (p-1)*(NumTimeSteps)*M, NumStateVars + 2*(i-1) + (p-1)*NumTimeSteps*2 + 2) = cos((2*pi*m)/M);
+        end
+    end
+end
+
+%fill in velocity constraints in the bineq matrix
+for i = 1:NumVelocityConstraints
+    bineq(i,1) = u_max;
+end
+
+%add collision constraints into Aineq
+for i = 1:(NumTimeSteps+1)
+    for p = 1:(NumAgents-1)
+        for q = (p+1):NumAgents
+            
+        end
+    end
+end
+
 % disp(ctype);
 % disp(lb');
 % disp(ub');
-disp(Aeq);
-%disp(beq');
+disp(Aineq);
+%disp(bineq');
 
 end
 
