@@ -20,7 +20,7 @@ dim = 2;
 
 % Determine initial positions of agents
 Radius = 10; % radius of circle of initial positions
-OffsetFlag = true; % Set final positions to be offset from 180 deg across
+OffsetFlag = false; % Set final positions to be offset from 180 deg across
 x0 = zeros(dim,1,NumAgents);
 xf = zeros(dim,1,NumAgents);
 

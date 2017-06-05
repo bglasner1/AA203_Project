@@ -66,8 +66,8 @@ CurrentStep = 1; % Start at step 0 (initial point)
 MaxNumTimeSteps = 100; % Restrict total number of time steps
 
 % Pre allocate output arrays
-X = zeros(dim,MaxNumTimeSteps+1,NumAgents);
-U = zeros(dim,MaxNumTimeSteps,NumAgents);
+X = NaN(dim,MaxNumTimeSteps+1,NumAgents);
+U = NaN(dim,MaxNumTimeSteps,NumAgents);
 X_plans = cell(MaxNumTimeSteps,1);
 all_opt_times = inf(1,NumAgents);
 
@@ -88,6 +88,10 @@ while any(all_opt_times == inf)  && (CurrentStep < (MaxNumTimeSteps+1))
     % Initilize X_plans for this timestep
     X_plans{CurrentStep} = zeros(2,PlanHorz+1,NumAgents);
     
+    % Update to execution horizon (until MaxNumTimeSteps + 1)
+    UpdateEnd = min([(CurrentStep + ExecHorz),(MaxNumTimeSteps + 1)]);
+    
+    % Loop through number of agents
     for p = 1:NumAgents
         
         % Determine which agents this agent is in communication with at the
@@ -124,8 +128,8 @@ while any(all_opt_times == inf)  && (CurrentStep < (MaxNumTimeSteps+1))
             % by very small epsilon value to ensure that the agent
             % progresses toward the destination after the destination comes
             % into the horizon. Again use L1 norm
-            plan_dist_to_goal = norm(xf(:,1,p) - x(:,PlanHorz+1),1);
-            next_dist_to_goal = norm(xf(:,1,p) - x(:,2),1);
+            plan_dist_to_goal = norm((xf(:,1,p) - x(:,PlanHorz+1)),1);
+            next_dist_to_goal = norm((xf(:,1,p) - x(:,2)),1);
             minimize(plan_dist_to_goal + epsilon*next_dist_to_goal); 
             subject to
                 % initial position constraint
@@ -179,8 +183,9 @@ while any(all_opt_times == inf)  && (CurrentStep < (MaxNumTimeSteps+1))
                         % Convert agent number q to valid index
                         q_ind = q-1;                        
                         
-                        % Check if p and q are in communication                        
+                        % Check if current step is initial step                       
                         if CurrentStep > 1
+                            % Check if p and q are in communication 
                             if dist_btwn_agents(q_ind) <= CommRange
                                 % In comm. Use q's last planned trajectory
                                 xq = X_plans{CurrentStep-1}(:,:,q);
@@ -217,29 +222,25 @@ while any(all_opt_times == inf)  && (CurrentStep < (MaxNumTimeSteps+1))
                     end
                 end
         cvx_end
+                
+        % Update X and U for execution horizon
+        U(:,CurrentStep:(UpdateEnd-1),p) = u(:,1:ExecHorz);
+        X(:,(CurrentStep+1):UpdateEnd,p) = x(:,2:(ExecHorz+1));
 
+        % Store current trajectory in X_plans for all time steps in execution
+        % horizon
+        for i = 1:ExecHorz
+           X_plans{CurrentStep + (i-1)}(:,:,p) = x;      
+
+           % Check for arrival if you haven't already arrived
+           if (all_opt_times(p) == inf) && ...
+                (norm((xf(:,1,p) - X(:,CurrentStep+i,p)),2) <= arrival_tol)  
+
+              % If you have arrived, store arrival time (index 1 is time 0)
+              all_opt_times(p) = (CurrentStep + i - 1)*TimeStep;      
+           end
+        end           
     end
-    
-    % Update X and U for execution horizon
-    % Update to execution horizon (until MaxNumTimeSteps + 1)
-    UpdateEnd = min(CurrentStep + ExecHorz,MaxNumTimeSteps + 1);
-    U(:,CurrentStep:(UpdateEnd-1),p) = u(:,1:ExecHorz);
-    X(:,(CurrentStep+1):UpdateEnd,p) = x(:,2:(ExecHorz+1));
-    
-    % Store current trajectory in X_plans for all time steps in execution
-    % horizon
-    for i = 1:ExecHorz
-       X_plans{CurrentStep + (i-1)}(:,:,p);      
-       
-       % Check for arrival if you haven't already arrived
-       if all_opt_times(p) == inf && ...
-            norm((xf(:,1,p) - X(:,CurrentStep+i,p)),2) <= arrival_tol  
-            
-          % If you have arrived, store arrival time (index 1 is time 0)
-          all_opt_times(p) = (CurrentStep + i - 1)*TimeStep;      
-       end
-    end    
-
     
     % Update counter by execution horizon (until MaxNumTimeSteps + 1)
     CurrentStep = UpdateEnd;
