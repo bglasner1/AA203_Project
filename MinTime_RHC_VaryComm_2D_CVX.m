@@ -70,6 +70,7 @@ X = NaN(dim,MaxNumTimeSteps+1,NumAgents);
 U = NaN(dim,MaxNumTimeSteps,NumAgents);
 X_plans = cell(MaxNumTimeSteps,1);
 all_opt_times = inf(1,NumAgents);
+feasible = true; % assume feasible initially
 
 % Define initial positions
 X(:,1,:) = x0;
@@ -83,7 +84,9 @@ tic
 % cvx_quiet true
 
 % Loop until all agents arrive at their destination
-while any(all_opt_times == inf)  && (CurrentStep < (MaxNumTimeSteps+1))
+while any(all_opt_times == inf)...
+      && (CurrentStep < (MaxNumTimeSteps+1))...
+      && feasible
     
     % Initilize X_plans for this timestep
     X_plans{CurrentStep} = zeros(2,PlanHorz+1,NumAgents);
@@ -119,8 +122,9 @@ while any(all_opt_times == inf)  && (CurrentStep < (MaxNumTimeSteps+1))
             % variables
             variable x(dim,PlanHorz+1);
             variable u(dim,PlanHorz);
-            variable c_pq(NumAgents-1,dim,PlanHorz+1) binary;
-            variable c_qp(NumAgents-1,dim,PlanHorz+1) binary;
+            variable c_pq(NumAgents-1,dim,PlanHorz) binary;
+            variable c_qp(NumAgents-1,dim,PlanHorz) binary;
+            % no collision constraints at initial time step
 
             % minimize distance from the end of the planned trajectory to
             % the destination (xf/goal). Use L1 norm for linearity.
@@ -171,11 +175,22 @@ while any(all_opt_times == inf)  && (CurrentStep < (MaxNumTimeSteps+1))
                             % In comm. Use q's current planned trajectory
                             xq = X_plans{CurrentStep}(:,:,q);
                         else
-                            % Not in comm. Use predicted straight
-                            % trajectory with q's current state and control
-                            xq = GetStraightTrajectory(...
-                                X(:,CurrentStep,q),...
-                                U(:,CurrentStep,q),PlanHorz);
+                            % Check if current step is initial step                       
+                            if CurrentStep > 1
+                            
+                                % Not in comm. Use predicted straight
+                                % trajectory with q's current state and 
+                                % last control
+                                xq = GetStraightTrajectory(...
+                                    X(:,CurrentStep,q),...
+                                    U(:,CurrentStep-1,q),PlanHorz);
+                                
+                            % Current step is 1. Generate static trajectory at
+                            % current position
+                            else
+                                xq = GetStraightTrajectory(...
+                                       X(:,CurrentStep,q),[0 0]',PlanHorz);
+                            end
                         end
                         
                     % Else q has not planned at this time step
@@ -206,23 +221,31 @@ while any(all_opt_times == inf)  && (CurrentStep < (MaxNumTimeSteps+1))
                     end
                     
                     % Define collision avoidance constraints for all time
-                    % steps in horizon
-                    for i = 1:(PlanHorz+1)
+                    % steps in horizon. No collision constraints at initial
+                    % time step
+                    for i = 2:(PlanHorz+1)
                         for k = 1:dim
                             % x and y difference for p-q
-                            x(k,i) - xq(k,i) >= d - R*c_pq(q_ind,k,i);
+                            x(k,i) - xq(k,i) >= d - R*c_pq(q_ind,k,i-1);
                             % x and y difference for q-p
-                            xq(k,i) - x(k,i) >= d - R*c_qp(q_ind,k,i);
+                            xq(k,i) - x(k,i) >= d - R*c_qp(q_ind,k,i-1);
                         end
 
                         % only allow 3 (of 4) constraints to be relaxed (c = 1)
                         % at a time (as long as one is active and satisfied,
                         % there will not be a collision)
-                        sum(c_pq(q_ind,:,i)) + sum(c_qp(q_ind,:,i)) <= 3;
+                        sum(c_pq(q_ind,:,i-1))+sum(c_qp(q_ind,:,i-1)) <= 3;
                     end
                 end
         cvx_end
-                
+        
+        % Check for infeasible result
+        if strcmp(cvx_status,'Infeasible')
+          fprintf('\nAgent %i Infeasible at time step %i\n',p,CurrentStep);
+          feasible = false;
+          break;
+        end
+        
         % Update X and U for execution horizon
         U(:,CurrentStep:(UpdateEnd-1),p) = u(:,1:ExecHorz);
         X(:,(CurrentStep+1):UpdateEnd,p) = x(:,2:(ExecHorz+1));
@@ -242,8 +265,10 @@ while any(all_opt_times == inf)  && (CurrentStep < (MaxNumTimeSteps+1))
         end           
     end
     
-    % Update counter by execution horizon (until MaxNumTimeSteps + 1)
-    CurrentStep = UpdateEnd;
+    if feasible
+        % Update counter by execution horizon (until MaxNumTimeSteps + 1)
+        CurrentStep = UpdateEnd;
+    end
 end
 
 %% Display results
@@ -258,7 +283,14 @@ display(opt_time)
 % Limit output arrays to stop at the last arrival step
 X = X(:,1:CurrentStep,:);
 U = U(:,1:(CurrentStep-1),:);
-X_plans = X_plans{1:(CurrentStep-1)};
+%     X_plans = X_plans{1:(CurrentStep-1)};
+
+% Store only plans that were used
+temp = cell((CurrentStep-1),1);
+for i = 1:length(temp)
+    temp{i} = X_plans{i};
+end
+X_plans = temp;
 
 
 % Plot results

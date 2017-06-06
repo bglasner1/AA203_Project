@@ -1,9 +1,15 @@
+% AA203 Project
+% 6/4/2017
+% Function to plot the trajectories defined in input matrix X
+%
+% Input X: 2 x NumTimeSteps+1 x NumAgents
+
 function PlotTrajectory(X)
 
 % Extract constants
 NumTimeSteps = size(X,2) - 1;
 NumAgents = size(X,3);
-Radius = 
+Radius = X(1,1,1); % radius is x position of first agent
 
 figure
 % Plot circle
@@ -19,6 +25,6 @@ end
 hold off
 xlabel('x')
 ylabel('y')
-title(['Minimum Time Trajectories for ',...
-        num2str(NumAgents),' Agents with Full Communication'])
+title(['Minimum Time Trajectories for ',
+        num2str(NumAgents),' Agents'])
 axis equal

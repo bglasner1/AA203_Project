@@ -24,7 +24,6 @@ for p = 1:NumAgents
 end
 hold off
 xlabel('x')
-ylabel('y')
-title(['Minimum Time Trajectories for ',...
-        num2str(NumAgents),' Agents with Full Communication'])
+ylabel('y','Rotation',0)
+title(['Minimum Time Trajectories for ',num2str(NumAgents),' Agents'])
 axis equal
