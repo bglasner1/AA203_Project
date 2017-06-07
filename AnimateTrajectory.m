@@ -34,12 +34,26 @@ for iter = 1:10
             plot(X(1,1,p),X(2,1,p),'g.','MarkerSize',15)
             plot(X(1,end,p),X(2,end,p),'r*','MarkerSize',15)
             
+            % Check for collisions
+            AgentColor = 'b';
+            OtherAgents = [1:(p-1),(p+1):NumAgents];
+            
+            for q = OtherAgents
+                if((abs(X(1,i,p) - X(1,i,q)) < d) &&...
+                        (abs(X(2,i,p) - X(2,i,q)) < d))
+                    
+                    AgentColor = 'r';
+                    break;                    
+                end
+            end
+            
+            
             % Current position
             x = X(1,i,p);
             y = X(2,i,p);            
             plot(x,y,'k.')
             rectangle('Position',[x-d/2,y-d/2,d,d],...
-                      'EdgeColor','b','LineStyle','--')
+                      'EdgeColor',AgentColor,'LineStyle','--')
         end
         
         hold off

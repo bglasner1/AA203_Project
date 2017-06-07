@@ -31,7 +31,7 @@
 %          cpu_time: run time
 
 
-function [X,U,X_plans,opt_time,cpu_time] = MinTime_RHC_VaryComm_2D_CVX(NumAgents,CommRange,ExecHorz,PlanHorz)
+function [X,U,X_plans,opt_time,cpu_time,NumCollisions] = MinTime_RHC_VaryComm_2D_CVX(NumAgents,CommRange,ExecHorz,PlanHorz)
 
 %% Parameter definition
 
@@ -50,6 +50,7 @@ xf = zeros(dim,1,NumAgents);
 % Define parameters
 R = 10000; % big number parameter. 10000-100000 best for speed
 d = 1;     % exclusion zone center to edge distance
+margin = 1.05; % error margin to prevent unnecessary collisions
 M = 10;    % number of edges in circle approximation polygon
            % for linear velocity limits
            % odd values of M seem to run faster (9 and 11 are faster than
@@ -74,6 +75,11 @@ all_opt_times = inf(1,NumAgents);
 % Define initial positions
 X(:,1,:) = x0;
 
+%initialize collision states
+CollisionTable = zeros(NumAgents,NumAgents);
+%keep track of collisions
+NumCollisions = 0;
+
 %% Calculate planned trajectories for each agent at each time step
 
 % Keep track of cpu time
@@ -83,7 +89,8 @@ tic
 % cvx_quiet true
 
 % Loop until all agents arrive at their destination
-while any(all_opt_times == inf)  && (CurrentStep < (MaxNumTimeSteps+1))
+while any(all_opt_times == inf)...
+      && (CurrentStep < (MaxNumTimeSteps+1))...
     
     % Initilize X_plans for this timestep
     X_plans{CurrentStep} = zeros(2,PlanHorz+1,NumAgents);
@@ -130,7 +137,7 @@ while any(all_opt_times == inf)  && (CurrentStep < (MaxNumTimeSteps+1))
             % progresses toward the destination after the destination comes
             % into the horizon. Again use L1 norm
             plan_dist_to_goal = norm((xf(:,1,p) - x(:,PlanHorz+1)),1);
-            next_dist_to_goal = norm((xf(:,1,p) - x(:,2)),1);
+            next_dist_to_goal = norm((xf(:,1,p) - x(:,ExecHorz+1)),1);
             minimize(plan_dist_to_goal + epsilon*next_dist_to_goal); 
             subject to
                 % initial position constraint
@@ -217,38 +224,77 @@ while any(all_opt_times == inf)  && (CurrentStep < (MaxNumTimeSteps+1))
                         end
                     end
                     
-                    % Define collision avoidance constraints for all time
-                    % steps in horizon. No collision constraints at initial
-                    % time step
-                    for i = 2:(PlanHorz+1)
-                        for k = 1:dim
-                            % x and y difference for p-q
-                            x(k,i) - xq(k,i) >= d - R*c_pq(q_ind,k,i-1);
-                            % x and y difference for q-p
-                            xq(k,i) - x(k,i) >= d - R*c_qp(q_ind,k,i-1);
-                        end
+                    
+                    if (CollisionTable(p,q) == 0)
+                        % Define collision avoidance constraints for all time
+                        % steps in horizon. No collision constraints at initial
+                        % time step
+                        for i = 2:(PlanHorz+1)
+                            for k = 1:dim
+                               % x and y difference for p-q
+                               x(k,i) - xq(k,i) >= 1.05*d - R*c_pq(q_ind,k,i-1);
+                               % x and y difference for q-p
+                               xq(k,i) - x(k,i) >= 1.05*d - R*c_qp(q_ind,k,i-1);
+                            end
 
-                        % only allow 3 (of 4) constraints to be relaxed (c = 1)
-                        % at a time (as long as one is active and satisfied,
-                        % there will not be a collision)
-                        sum(c_pq(q_ind,:,i-1))+sum(c_qp(q_ind,:,i-1)) <= 3;
+                            % only allow 3 (of 4) constraints to be relaxed (c = 1)
+                            % at a time (as long as one is active and satisfied,
+                            % there will not be a collision)
+                            sum(c_pq(q_ind,:,i-1))+sum(c_qp(q_ind,:,i-1)) <= 3;
+                        end
                     end
                 end
         cvx_end
         
+        % Update X and U for execution horizon
         % Check for infeasible result
+        LengthToStore = UpdateEnd - CurrentStep;
         if strcmp(cvx_status,'Infeasible')
-            fprintf('\nAgent %i Infeasible at time step %i\n',
+          fprintf('\nAgent %i Infeasible at time step %i\n',p,CurrentStep);
+          U(:,CurrentStep:(UpdateEnd-1),p) = zeros(2,LengthToStore);
+          X(:,(CurrentStep+1):UpdateEnd,p) = X(:,CurrentStep,p).*ones(2,LengthToStore);
+        else
+            U(:,CurrentStep:(UpdateEnd-1),p) = u(:,1:LengthToStore);
+            X(:,(CurrentStep+1):UpdateEnd,p) = x(:,2:(LengthToStore+1));
         end
         
-        % Update X and U for execution horizon
-        U(:,CurrentStep:(UpdateEnd-1),p) = u(:,1:ExecHorz);
-        X(:,(CurrentStep+1):UpdateEnd,p) = x(:,2:(ExecHorz+1));
+        % Check to see if any of the updated points cause a collision with
+        % any of the other agents
+        for q = 1:(p-1)
+            for FutureTimes = (CurrentStep+1):UpdateEnd
+                %if we are in the exclusion zone of the other agent there
+                %is a collision
+                
+                if((abs(X(1,FutureTimes,p) - X(1,FutureTimes,q)) < d) &&...
+                        (abs(X(2,FutureTimes,p) - X(2,FutureTimes,q)) < d))
+                    %if the collision bool is not set, we have to handle it
+                    if(CollisionTable(p,q) == 0)
+                        %update the number of collisions
+                        NumCollisions = NumCollisions + 1;
+                        fprintf('p = %d, q = %d\r\n', p,q);
+                        %update the collision bools for p and q
+                        CollisionTable(p,q) = 1;
+                        CollisionTable(q,p) = 1;
+                    end
+                else %we are not in a collision
+                    %check to see if our last step was a collision
+                    if(CollisionTable(p,q) == 1)
+                        %if it is set to 1, clear the bools
+                        CollisionTable(p,q) = 0;
+                        CollisionTable(q,p) = 0;
+                    end
+                end
+            end
+        end
+        
 
         % Store current trajectory in X_plans for all time steps in execution
         % horizon
-        for i = 1:ExecHorz
-           X_plans{CurrentStep + (i-1)}(:,:,p) = x;      
+        for i = 1:LengthToStore
+           X_plans{CurrentStep + (i-1)}(:,:,p) = x;
+           
+           % Ensure accurate current position even for infeasible plan
+           X_plans{CurrentStep + (i-1)}(:,1,p) = X(:,CurrentStep,p);
 
            % Check for arrival if you haven't already arrived
            if (all_opt_times(p) == inf) && ...
@@ -260,8 +306,10 @@ while any(all_opt_times == inf)  && (CurrentStep < (MaxNumTimeSteps+1))
         end           
     end
     
+
     % Update counter by execution horizon (until MaxNumTimeSteps + 1)
     CurrentStep = UpdateEnd;
+
 end
 
 %% Display results
@@ -272,6 +320,10 @@ opt_time = sum(all_opt_times);
 
 display(cpu_time)
 display(opt_time)
+display(NumCollisions)
+if(NumCollisions > 0)
+    opt_time = inf;
+end
 
 % Limit output arrays to stop at the last arrival step
 X = X(:,1:CurrentStep,:);
