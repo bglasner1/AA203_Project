@@ -86,7 +86,7 @@ NumCollisions = 0;
 tic
 
 % Suppress CVX output
-% cvx_quiet true
+cvx_quiet true
 
 % Loop until all agents arrive at their destination
 while any(all_opt_times == inf)...
@@ -232,9 +232,9 @@ while any(all_opt_times == inf)...
                         for i = 2:(PlanHorz+1)
                             for k = 1:dim
                                % x and y difference for p-q
-                               x(k,i) - xq(k,i) >= 1.05*d - R*c_pq(q_ind,k,i-1);
+                               x(k,i) - xq(k,i) >= margin*d - R*c_pq(q_ind,k,i-1);
                                % x and y difference for q-p
-                               xq(k,i) - x(k,i) >= 1.05*d - R*c_qp(q_ind,k,i-1);
+                               xq(k,i) - x(k,i) >= margin*d - R*c_qp(q_ind,k,i-1);
                             end
 
                             % only allow 3 (of 4) constraints to be relaxed (c = 1)
@@ -271,7 +271,6 @@ while any(all_opt_times == inf)...
                     if(CollisionTable(p,q) == 0)
                         %update the number of collisions
                         NumCollisions = NumCollisions + 1;
-                        fprintf('p = %d, q = %d\r\n', p,q);
                         %update the collision bools for p and q
                         CollisionTable(p,q) = 1;
                         CollisionTable(q,p) = 1;
@@ -322,9 +321,9 @@ if(NumCollisions > 0)
     opt_time = inf;
 end
 
-display(cpu_time)
-display(opt_time)
-display(NumCollisions)
+% display(cpu_time)
+% display(opt_time)
+% display(NumCollisions)
 
 % Limit output arrays to stop at the last arrival step
 X = X(:,1:CurrentStep,:);
@@ -340,6 +339,6 @@ X_plans = temp;
 
 
 % Plot results
-PlotTrajectory(X);
+% PlotTrajectory(X);
            
            

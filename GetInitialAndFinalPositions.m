@@ -54,20 +54,20 @@ for p = 1:NumAgents
 end
 
 % Plot straight line trajectories
-figure
-% Plot circle
-t = linspace(0,2*pi,100);
-plot(Radius*cos(t),Radius*sin(t),'k')
-hold on
-% Plot initial and final points with straight line trajectory
-for i = 1:NumAgents
-    plot(x0(1,i),x0(2,i),'b.','MarkerSize',15) % initial point
-    plot(xf(1,i),xf(2,i),'r*','MarkerSize',15) % final point
-    plot([x0(1,i) xf(1,i)],[x0(2,i) xf(2,i)],'g','MarkerSize',15) % trajectory
-end
-hold off
-xlabel('x')
-ylabel('y')
-title(['Initial Positions and Destinations for ',...
-        num2str(NumAgents),' Agents'])
-axis equal
+% figure
+% % Plot circle
+% t = linspace(0,2*pi,100);
+% plot(Radius*cos(t),Radius*sin(t),'k')
+% hold on
+% % Plot initial and final points with straight line trajectory
+% for i = 1:NumAgents
+%     plot(x0(1,i),x0(2,i),'b.','MarkerSize',15) % initial point
+%     plot(xf(1,i),xf(2,i),'r*','MarkerSize',15) % final point
+%     plot([x0(1,i) xf(1,i)],[x0(2,i) xf(2,i)],'g','MarkerSize',15) % trajectory
+% end
+% hold off
+% xlabel('x')
+% ylabel('y')
+% title(['Initial Positions and Destinations for ',...
+%         num2str(NumAgents),' Agents'])
+% axis equal
