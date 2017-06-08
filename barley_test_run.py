@@ -18,10 +18,11 @@ save('RHC_%dCommRange_%dAgents_1ExecHorz_10PlanHorz.mat',listOfVariables{:});
 ''' % (numAgents, CommRange, CommRange, numAgents)
 		
 		qsubscript = '''#!/bin/bash
-#$ -0 job.out
+#$ -o job.out
 #$ -e job.error
 #$ -cwd
-#$ /bin/bash##$ -l testq=1
+#$ /bin/bash
+##$ -l testq=1
 		
 module load matlab
 matlab -nodesktop -singleCompThread < RHC_%dCommRange_%dAgents_1ExecHorz_10PlanHorz.m
