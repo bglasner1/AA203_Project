@@ -11,7 +11,7 @@
 %                       destination before the max time or the problem will
 %                       be infeasible
 
-function [X,U,cpu_time] = MinTime_NoRHC_FullComm_2D_CVX(NumAgents,TimeStep,NumTimeSteps)
+function [X,U,cpu_time,opt_cost] = MinTime_NoRHC_FullComm_2D_CVX(NumAgents,TimeStep,NumTimeSteps)
 
 %% Parameter definition
 
@@ -44,7 +44,7 @@ times = [0:NumTimeSteps]'.*TimeStep;
 %% CVX representation
 
 % Suppress CVX output
-% cvx_quiet true
+cvx_quiet true
 
 % Perform optimization for trajectories
 cvx_begin
@@ -140,11 +140,11 @@ U = u;
 
 % output
 cpu_time = cvx_cputime;
-
-display(cvx_cputime)
-display(cvx_optval)
-
-% Plot results
-PlotTrajectory(X);
+opt_cost = cvx_optval;
+% display(cvx_cputime)
+% display(cvx_optval)
+% 
+% % Plot results
+% PlotTrajectory(X);
            
            

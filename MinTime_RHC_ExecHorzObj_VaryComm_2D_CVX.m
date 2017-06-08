@@ -31,7 +31,7 @@
 %          cpu_time: run time
 
 
-function [X,U,X_plans,opt_time,cpu_time,NumCollisions] = MinTime_RHC_VaryComm_2D_CVX(NumAgents,CommRange,ExecHorz,PlanHorz)
+function [X,U,X_plans,opt_time,cpu_time,NumCollisions] = MinTime_RHC_ExecHorzObj_VaryComm_2D_CVX(NumAgents,CommRange,ExecHorz,PlanHorz)
 
 %% Parameter definition
 
@@ -137,7 +137,10 @@ while any(all_opt_times == inf)...
             % progresses toward the destination after the destination comes
             % into the horizon. Again use L1 norm
             plan_dist_to_goal = norm((xf(:,1,p) - x(:,PlanHorz+1)),1);
-            next_dist_to_goal = norm((xf(:,1,p) - x(:,ExecHorz+1)),1);
+            next_dist_to_goal = 0;
+            for planStep = 2:ExecHorz+1
+                next_dist_to_goal = next_dist_to_goal + norm((xf(:,1,p) - x(:,planStep)),1);
+            end
             minimize(plan_dist_to_goal + epsilon*next_dist_to_goal); 
             subject to
                 % initial position constraint
