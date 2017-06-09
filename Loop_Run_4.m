@@ -2,7 +2,7 @@
 % See comments in MinTime_RHC_VaryComm_2D_CVX for additional detail
 fprintf('Starting Run 4\r\n');
 N_agents = 10; % Range of number of agents to simulate
-CommRange = [4.2 3.9]; % Communication range - 0 is no comunication, 20 is full
+CommRange = [3.3]; % Communication range - 0 is no comunication, 20 is full
 ExecHorz = 3; % Number of steps to take before replanning.
 PlanHorz = 10; % Number of steps the algorithm plans per iteration
 
