@@ -27,7 +27,7 @@
 %                   yf_1 yf_2 yf_3 ... yf_N]
 
 function [x0,xf] = GetInitialAndFinalPositions(NumAgents,Radius,OffsetFlag)
-
+d = 1;
 % seed random number generator
 rng shuffle
 
@@ -40,6 +40,7 @@ for p = 1:NumAgents
     angularPosition = 2*pi*(p-1)/NumAgents; % angular position for ith agent (on circle centered at origin)
     x0(1,p) = Radius*cos(angularPosition); % initial x position for ith agent
     x0(2,p) = Radius*sin(angularPosition); % initial y position for ith agent
+
     
     if OffsetFlag == false
         xf_offset = 0; % no offset
@@ -54,20 +55,23 @@ for p = 1:NumAgents
 end
 
 % Plot straight line trajectories
-% figure
-% % Plot circle
-% t = linspace(0,2*pi,100);
-% plot(Radius*cos(t),Radius*sin(t),'k')
-% hold on
-% % Plot initial and final points with straight line trajectory
-% for i = 1:NumAgents
-%     plot(x0(1,i),x0(2,i),'b.','MarkerSize',15) % initial point
-%     plot(xf(1,i),xf(2,i),'r*','MarkerSize',15) % final point
-%     plot([x0(1,i) xf(1,i)],[x0(2,i) xf(2,i)],'g','MarkerSize',15) % trajectory
-% end
-% hold off
-% xlabel('x')
-% ylabel('y')
-% title(['Initial Positions and Destinations for ',...
-%         num2str(NumAgents),' Agents'])
-% axis equal
+figure
+% Plot circle
+t = linspace(0,2*pi,100);
+plot(Radius*cos(t),Radius*sin(t),'k')
+hold on
+% Plot initial and final points with straight line trajectory
+for i = 1:NumAgents
+    plot(x0(1,i),x0(2,i),'b.','MarkerSize',15) % initial point
+    plot(xf(1,i),xf(2,i),'r*','MarkerSize',15) % final point
+    plot([x0(1,i) xf(1,i)],[x0(2,i) xf(2,i)],'g','MarkerSize',15) % trajectory
+    rectangle('Position',[x0(1,i)-d/2,x0(2,i)-d/2,d,d],...
+       'EdgeColor','b','LineStyle','--')
+end
+viscircles([x0(1,1),x0(2,1)],2,'Color','r');
+hold off
+xlabel('x')
+ylabel('y')
+%title(['Initial Positions and Destinations for ',...
+%        num2str(NumAgents),' Agents'])
+axis equal
